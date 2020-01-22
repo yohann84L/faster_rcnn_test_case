@@ -176,8 +176,11 @@ fabric.properties
 # Android studio 3.1+ serialized cache file
 .idea/caches/build_file_checksums.ser
 
+# VScode
+.vscode/
+
 # Images
-assignment_imgs/
+data/
 image_to_predict/
 
 # Models
