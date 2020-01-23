@@ -68,7 +68,7 @@ class FoodVisorDataset(torch.utils.data.Dataset):
                 label = self.__is_aliment_present(label_str)
                 labels.append(label)
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
-        labels = torch.as_tensor(labels, dtype=torch.float32)
+        labels = torch.as_tensor(labels, dtype=torch.int64)
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         image_id = torch.tensor([index])
 
@@ -77,7 +77,7 @@ class FoodVisorDataset(torch.utils.data.Dataset):
             "labels": labels,
             "area": area,
             "image_id": image_id,
-            "image_filename": img_id
+            #"image_filename": img_id
         }
 
         if self.transforms:
