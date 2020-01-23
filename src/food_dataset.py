@@ -63,7 +63,10 @@ class FoodVisorDataset(torch.utils.data.Dataset):
         for obj in objs:
             if not obj["is_background"]:
                 # Coco dataset format : [x, y, width, height]
-                boxes.append(obj["box"])
+                #boxes.append(obj["box"])
+                x0, y0, w, h = obj["box"]
+                x1, y1 = x0 + w, y0 + h
+                boxes.append([x0, y0, x1, y1])
                 label_str = self.__get_label_for_id(obj["id"])
                 label = self.__is_aliment_present(label_str)
                 labels.append(label)
