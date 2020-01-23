@@ -32,14 +32,15 @@ class FoodVisorDataset(torch.utils.data.Dataset):
 
     def __init__(
             self,
-            json_annotations: dict,
+            json_annotations: str,
             csv_mapping: str,
             imgs_folder: str,
             regex_aliment: str,
             transforms: A = None,
             lang: str = "fr"):
         self.imgs_folder = Path(imgs_folder)
-        self.img_annotations = json_annotations
+        with open(Path(json_annotations).as_posix()) as f:
+            self.img_annotations = json.load(f)
         self.csv_mapping = pd.read_csv(csv_mapping)
 
         self.transforms = transforms
@@ -61,6 +62,7 @@ class FoodVisorDataset(torch.utils.data.Dataset):
         labels = []
         for obj in objs:
             if not obj["is_background"]:
+                # Coco dataset format : [x, y, width, height]
                 boxes.append(obj["box"])
                 label_str = self.__get_label_for_id(obj["id"])
                 label = self.__is_aliment_present(label_str)
@@ -74,7 +76,8 @@ class FoodVisorDataset(torch.utils.data.Dataset):
             "boxes": boxes,
             "labels": labels,
             "area": area,
-            "image_id": image_id
+            "image_id": image_id,
+            "image_filename": img_id
         }
 
         if self.transforms:
