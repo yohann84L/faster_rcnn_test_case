@@ -1,5 +1,6 @@
 from src.utils import plot_example
 from src.food_dataset import FoodVisorDataset
+from src.metric_logger import MetricLogger, SmoothedValue
 import src.utils as utils
 import torchvision
 import torch
@@ -9,6 +10,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import math
 import sys
+import time
 
 
 def load_agumentation_pipelines():
@@ -68,44 +70,11 @@ def build_dataset(transforms):
 
     return dataset
 
-def build_model():
-    # load pretrained model
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-
-    # define number of classe and set the output of the classifier to this number
-    num_classes = 2
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
-
-    # backbone model
-    backbone = torchvision.models.mobilenet_v2(pretrained=True).features
-    backbone.out_channels = 1280
-
-    anchor_generator = AnchorGenerator(
-        sizes=((32, 64, 128, 256, 512), ),
-        aspect_ratios=((0.5, 1.0, 2.0), )
-    )
-
-    roi_pooler = torchvision.ops.MultiScaleRoIAlign(
-        featmap_names=['0'],
-        output_size=7,
-        sampling_ratio=2
-    )
-
-    model = FasterRCNN(
-        backbone=backbone,
-        num_classes=num_classes,
-        rpn_anchor_generator=anchor_generator,
-        box_roi_pool=roi_pooler
-    )
-
-    return model
-
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
     model.train()
-    metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger = MetricLogger(delimiter="  ")
+    metric_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
 
     lr_scheduler = None
@@ -146,6 +115,39 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
 
+@torch.no_grad()
+def evaluate(model, data_loader, device):
+    n_threads = torch.get_num_threads()
+    # FIXME remove this and make paste_masks_in_image run on the GPU
+    torch.set_num_threads(1)
+    cpu_device = torch.device("cpu")
+    model.eval()
+    metric_logger = MetricLogger(delimiter="  ")
+    header = 'Test:'
+
+    for image, targets in metric_logger.log_every(data_loader, 100, header):
+        image = list(img.to(device) for img in image)
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+        torch.cuda.synchronize()
+        model_time = time.time()
+        outputs = model(image)
+
+        outputs = [{k: v.to(cpu_device) for k, v in t.items()} for t in outputs]
+        model_time = time.time() - model_time
+
+        res = {target["image_id"].item(): output for target, output in zip(targets, outputs)}
+        evaluator_time = time.time()
+        evaluator_time = time.time() - evaluator_time
+        metric_logger.update(model_time=model_time, evaluator_time=evaluator_time)
+
+    # gather the stats from all processes
+    metric_logger.synchronize_between_processes()
+    print("Averaged stats:", metric_logger)
+
+    torch.set_num_threads(n_threads)
+
+
 def train(model, data_loader):
     # choose device
     device = torch.device("cpu") if torch.cuda.is_available() else torch.device("cpu")
@@ -177,7 +179,7 @@ def train(model, data_loader):
         # update the learning rate
         lr_scheduler.step()
         # evaluate on the test dataset
-        #evaluate(model, data_loader_test, device=device)
+        evaluate(model, data_loader_test, device=device)
 
     print("That's it!")
 
