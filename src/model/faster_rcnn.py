@@ -37,6 +37,7 @@ class FasterRCNNFood:
         #     box_roi_pool=roi_pooler
         # )
 
+
     def train(self, data_loader, data_loader_test, num_epochs=10, use_cuda=True, plot_running=True):
 
         # choose device
@@ -72,3 +73,20 @@ class FasterRCNNFood:
             evaluate(self.model, data_loader_test, device=device, writer=writer, epoch=epoch)
         writer.close()
         print("That's it!")
+
+    def save_model(self, path):
+        torch.save(self.model.state_dict(), "test_model.pth")
+
+    def load_model_for_inference(self, path, pretrained=True, num_classes=2, cuda=True):
+        self.__init__(pretrained, num_classes)
+        device = torch.device("cuda") if (cuda and torch.cuda.is_available()) else torch.device("cpu")
+        self.model.load_state_dict(torch.load(path, map_location=device))
+        self.model.eval()
+
+    def predict(self, dataset, idx):
+        img, _ = dataset[idx]
+        img.to("cpu")
+        self.model.eval()
+        self.model.to("cpu")
+        pred = self.model([img])
+        return img, pred[0]
