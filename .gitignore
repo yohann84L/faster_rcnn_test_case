@@ -185,3 +185,6 @@ image_to_predict/
 
 # Models
 models/
+
+# Tensorboard runs
+runs/

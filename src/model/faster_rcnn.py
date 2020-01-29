@@ -4,7 +4,7 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.rpn import AnchorGenerator
 from torchvision.models.detection import FasterRCNN
 from .engine import train_one_epoch, evaluate
-from ..utils import MetricLivePlot
+from torch.utils.tensorboard import SummaryWriter
 
 class FasterRCNNFood:
     def __init__(self, pretrained=True, num_classes=2):
@@ -61,17 +61,16 @@ class FasterRCNNFood:
             gamma=0.1
         )
 
-        metric_plotter = MetricLivePlot()
+        writer = SummaryWriter()
 
-        for epoch in metric_plotter.plot_every(range(num_epochs)):
+        #writer.add_image_with_boxes("image_test", img, target["boxes"])
+
+        for epoch in range(num_epochs):
             # train for one epoch, printing every 50 iterations
-            train_one_epoch(self.model, optimizer, data_loader, device, epoch, print_freq=50)
+            train_one_epoch(self.model, optimizer, data_loader, device, epoch, print_freq=20, writer=writer)
             # update the learning rate
             lr_scheduler.step()
             # evaluate on the test dataset
-            evaluate(self.model, data_loader_test, device=device)
-
-            metric_plotter.update(results_train, train=True)
-            metric_plotter.update(results_eval, train=False)
-
+            evaluate(self.model, data_loader_test, device=device, writer=writer, epoch=epoch)
+        writer.close()
         print("That's it!")

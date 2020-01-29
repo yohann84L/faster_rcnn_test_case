@@ -4,6 +4,7 @@ from collections import defaultdict, deque
 
 import torch
 import torch.distributed as dist
+from torch.utils.tensorboard import SummaryWriter
 from src.utils import is_dist_avail_and_initialized
 
 
@@ -70,9 +71,10 @@ class SmoothedValue(object):
 
 
 class MetricLogger(object):
-    def __init__(self, delimiter="\t"):
+    def __init__(self, writer, delimiter="\t"):
         self.meters = defaultdict(SmoothedValue)
         self.delimiter = delimiter
+        self.writer = writer
 
     def update(self, **kwargs):
         for k, v in kwargs.items():
@@ -104,10 +106,12 @@ class MetricLogger(object):
     def add_meter(self, name, meter):
         self.meters[name] = meter
 
-    def log_every(self, iterable, print_freq, header=None):
+    def log_every(self, iterable, print_freq, epoch, header=None):
         i = 0
         if not header:
             header = ''
+        if print_freq == -1:
+            print_freq = len(iterable) - 1
         start_time = time.time()
         end = time.time()
         iter_time = SmoothedValue(fmt='{avg:.4f}')
@@ -146,17 +150,25 @@ class MetricLogger(object):
                         meters=str(self),
                         time=str(iter_time), data=str(data_time),
                         memory=torch.cuda.max_memory_allocated() / MB))
+                    self.update_summary_writer(int(i) + epoch * len(iterable))
+
                 else:
                     print(log_msg.format(
                         i, len(iterable), eta=eta_string,
                         meters=str(self),
                         time=str(iter_time), data=str(data_time)))
+                    self.update_summary_writer(int(i) + epoch * len(iterable))
             i += 1
             end = time.time()
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         print('{} Total time: {} ({:.4f} s / it)'.format(
             header, total_time_str, total_time / len(iterable)))
+
+    def update_summary_writer(self, n_iter):
+        for name, meter in self.meters.items():
+            self.writer.add_scalar(name, meter.value, n_iter)
+
 
     # def plot_every(self, iterable, print_freq):
     #     i=0

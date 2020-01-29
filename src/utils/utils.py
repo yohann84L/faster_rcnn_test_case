@@ -5,7 +5,10 @@ from random import randrange
 
 import torch
 import torch.distributed as dist
+import torchvision.transforms.functional as TF
 from PIL import ImageDraw, ImageFont
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 
 class Constants:
@@ -20,16 +23,25 @@ def plot_example(dataset: "FoodVisorDataset", idx: int = None):
         idx = randrange(len(dataset))
     img, target = dataset[idx]
 
+    img = unormalize_tensor(img)
+
+    fig, ax = plt.subplots(1)
+    ax.imshow(img.numpy().transpose(1, 2, 0))
     boxes = target["boxes"]
     labels = target["labels"]
     for bbox, label in zip(boxes[labels == 1], labels[labels == 1]):
-        x0, y0 = bbox[0], bbox[1]
-        x1, y1 = x0 + bbox[2], y0 + bbox[3]
-        draw_bbox = ImageDraw.Draw(img)
-        draw_bbox.rectangle([(x0, y0), (x1, y1)], outline="red", width=2)
-        draw_bbox.text((x0, y0), "Tomato", font=ImageFont.truetype("arial", 14, ), fill="red")
-    img.show(title=target["image_filename"])
+        x0, y0, x1, y1 = bbox
+        rect = patches.Rectangle((x0, y0), x1 - x0, y1 - y0, linewidth=1, edgecolor='r', facecolor='none')
+        # Add the patch to the Axes
+        ax.add_patch(rect)
+    plt.show()
 
+def unormalize_tensor(img: torch.Tensor) -> torch.Tensor:
+    return TF.normalize(
+        img,
+        mean=[-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.255],
+        std=[1 / 0.229, 1 / 0.224, 1 / 0.255]
+    )
 
 def all_gather(data):
     """

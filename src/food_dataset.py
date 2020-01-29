@@ -4,15 +4,17 @@ import re
 from pathlib import Path
 
 import albumentations as A
+from torchvision.datasets import ImageFolder
 import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
-from skimage import io
+import cv2
+from typing import Union
 from torch.utils.data import SubsetRandomSampler
 
 from src.utils import Constants
-
+from albumentations.augmentations.transforms import normalize_bbox
 
 class FoodVisorDataset(torch.utils.data.Dataset):
     """
@@ -62,17 +64,26 @@ class FoodVisorDataset(torch.utils.data.Dataset):
         labels = []
         for obj in objs:
             if not obj["is_background"]:
-                # Coco dataset format : [x, y, width, height]
-                #boxes.append(obj["box"])
-                x0, y0, w, h = obj["box"]
-                x1, y1 = x0 + w, y0 + h
-                boxes.append([x0, y0, x1, y1])
+                boxes.append(coco_to_pascalvoc(obj["box"]))
                 label_str = self.__get_label_for_id(obj["id"])
                 label = self.__is_aliment_present(label_str)
                 labels.append(label)
+
+        img = cv2.imread(img_name.as_posix())
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        if self.transforms:
+            data = {
+                "image": img,
+                "bboxes": boxes,
+                "labels": labels}
+            res = self.transforms(**data)
+            img = res["image"]
+            boxes = res["bboxes"]
+
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         labels = torch.as_tensor(labels, dtype=torch.int64)
-        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        area = boxes[:, 3] * boxes[:, 2]
         image_id = torch.tensor([index])
 
         target = {
@@ -82,11 +93,6 @@ class FoodVisorDataset(torch.utils.data.Dataset):
             "image_id": image_id,
             #"image_filename": img_id
         }
-
-        if self.transforms:
-            img = self.transforms(image=io.imread(img_name))["image"]
-        else:
-            img = Image.fromarray(io.imread(img_name))
 
         return img, target
 
@@ -122,6 +128,15 @@ class FoodVisorDataset(torch.utils.data.Dataset):
             return 1
         else:
             return 0
+
+
+def coco_to_pascalvoc(bbox: Union[list, tuple, np.array]) -> Union[list, tuple, np.array]:
+    # Coco dataset format : [x, y, width, height]
+    x, y, w, h = bbox[0], bbox[1], bbox[2] - 1, bbox[3] - 1
+    # Transform into pascal_voc format : [xmin, ymin, xmax, ymax]
+    x0, y0 = min(x, x + w), min(y, y + h)
+    x1, y1 = max(x, x + w), max(y, y + h)
+    return x0, y0, x1, y1
 
 def split_train_test_valid_json(
     img_annotation_path: str,
