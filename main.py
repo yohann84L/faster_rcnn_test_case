@@ -3,7 +3,7 @@ import torch
 import src.utils as utils
 from src.datasets import FoodVisorDataset, DatasetTransforms
 from src.model import FasterRCNNFood
-from src.utils.vizualisation import plot_prediction, plot_example
+from src.utils.visualization import plot_prediction, plot_example
 
 
 def build_dataset(dataset_params: dict, transforms: DatasetTransforms) -> FoodVisorDataset:

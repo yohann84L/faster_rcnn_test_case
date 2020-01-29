@@ -17,25 +17,6 @@ class Constants:
     COL_LABEL_ID = "labelling_id"
 
 
-def plot_example(dataset: "FoodVisorDataset", idx: int = None):
-    if not idx:
-        idx = randrange(len(dataset))
-    img, target = dataset[idx]
-
-    img = unormalize_tensor(img)
-
-    fig, ax = plt.subplots(1)
-    ax.imshow(img.numpy().transpose(1, 2, 0))
-    boxes = target["boxes"]
-    labels = target["labels"]
-    for bbox, label in zip(boxes[labels == 1], labels[labels == 1]):
-        x0, y0, x1, y1 = bbox
-        rect = patches.Rectangle((x0, y0), x1 - x0, y1 - y0, linewidth=1, edgecolor='r', facecolor='none')
-        # Add the patch to the Axes
-        ax.add_patch(rect)
-    plt.show()
-
-
 def unormalize_tensor(img: torch.Tensor) -> torch.Tensor:
     return TF.normalize(
         img,
