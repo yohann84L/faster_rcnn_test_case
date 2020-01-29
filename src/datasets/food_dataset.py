@@ -1,14 +1,13 @@
 import json
-import random
 import re
 from pathlib import Path
+from typing import Union
 
 import albumentations as A
+import cv2
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image
-from skimage import io
 from torch.utils.data import SubsetRandomSampler
 
 from src.utils import Constants
@@ -62,14 +61,26 @@ class FoodVisorDataset(torch.utils.data.Dataset):
         labels = []
         for obj in objs:
             if not obj["is_background"]:
-                # Coco dataset format : [x, y, width, height]
-                boxes.append(obj["box"])
+                boxes.append(coco_to_pascalvoc(obj["box"]))
                 label_str = self.__get_label_for_id(obj["id"])
                 label = self.__is_aliment_present(label_str)
                 labels.append(label)
+
+        img = cv2.imread(img_name.as_posix())
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        if self.transforms:
+            data = {
+                "image": img,
+                "bboxes": boxes,
+                "labels": labels}
+            res = self.transforms(**data)
+            img = res["image"]
+            boxes = res["bboxes"]
+
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         labels = torch.as_tensor(labels, dtype=torch.int64)
-        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        area = boxes[:, 3] * boxes[:, 2]
         image_id = torch.tensor([index])
 
         target = {
@@ -77,13 +88,8 @@ class FoodVisorDataset(torch.utils.data.Dataset):
             "labels": labels,
             "area": area,
             "image_id": image_id,
-            #"image_filename": img_id
+            # "image_filename": img_id
         }
-
-        if self.transforms:
-            img = self.transforms(image=io.imread(img_name))["image"]
-        else:
-            img = Image.fromarray(io.imread(img_name))
 
         return img, target
 
@@ -120,61 +126,11 @@ class FoodVisorDataset(torch.utils.data.Dataset):
         else:
             return 0
 
-def split_train_test_valid_json(
-    img_annotation_path: str,
-    random_seed: int = None,
-    split_size=(
-        0.8,
-        0.2)):
-    """
-    Method to split dataset ids into train, test and valid
 
-    Argument:
-    ---------
-        - img_annotation_path (str): filename/path of the annotation json file
-        - random_seed (int): seed of the random shuffle
-        - split_size (tuple of float): float size for each split
-
-    Return:
-    -------
-        - 2 or 3 dictionary corresponding to the splitted annotation json file
-    """
-    with open(img_annotation_path) as f:
-        img_annotation = json.load(f)
-
-    img_ids = list(img_annotation.keys())
-    if random_seed:
-        random.seed(random_seed)
-    random.shuffle(img_ids)
-    total_length = len(img_ids)
-    img_ids = np.array(img_ids)
-
-    if len(split_size) == 1 and split_size[0] <= 1:
-        split_key = np.split(img_ids, [np.floor(total_length * split_size[0])])
-        return (
-            {k: v for k, v in img_annotation.items() if k in split_key[0]},
-            {k: v for k, v in img_annotation.items() if k in split_key[1]},
-        )
-    elif len(split_size) == 2 and split_size[0] <= 1:
-        split_key = np.split(img_ids,
-                             [int(np.floor(total_length * split_size[0]))])
-        return (
-            {k: v for k, v in img_annotation.items() if k in split_key[0]},
-            {k: v for k, v in img_annotation.items() if k in split_key[1]},
-        )
-    elif len(split_size) == 3 and split_size[0] <= 1:
-        split_key = np.split(
-            img_ids,
-            [
-                int(np.floor(total_length * split_size[0])),
-                int(np.floor(total_length * (split_size[0] + split_size[1]))),
-            ],
-        )
-        return (
-            {k: v for k, v in img_annotation.items() if k in split_key[0]},
-            {k: v for k, v in img_annotation.items() if k in split_key[1]},
-            {k: v for k, v in img_annotation.items() if k in split_key[2]},
-        )
-
-    else:
-        raise NotImplementedError
+def coco_to_pascalvoc(bbox: Union[list, tuple, np.array]) -> Union[list, tuple, np.array]:
+    # Coco dataset format : [x, y, width, height]
+    x, y, w, h = bbox[0], bbox[1], bbox[2] - 1, bbox[3] - 1
+    # Transform into pascal_voc format : [xmin, ymin, xmax, ymax]
+    x0, y0 = min(x, x + w), min(y, y + h)
+    x1, y1 = max(x, x + w), max(y, y + h)
+    return x0, y0, x1, y1
