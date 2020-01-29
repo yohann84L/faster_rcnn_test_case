@@ -63,8 +63,6 @@ class FasterRCNNFood:
 
         writer = SummaryWriter()
 
-        #writer.add_image_with_boxes("image_test", img, target["boxes"])
-
         for epoch in range(num_epochs):
             # train for one epoch, printing every 50 iterations
             train_one_epoch(self.model, optimizer, data_loader, device, epoch, print_freq=20, writer=writer)

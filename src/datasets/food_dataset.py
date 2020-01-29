@@ -1,20 +1,17 @@
 import json
-import random
 import re
 from pathlib import Path
+from typing import Union
 
 import albumentations as A
-from torchvision.datasets import ImageFolder
+import cv2
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image
-import cv2
-from typing import Union
 from torch.utils.data import SubsetRandomSampler
 
 from src.utils import Constants
-from albumentations.augmentations.transforms import normalize_bbox
+
 
 class FoodVisorDataset(torch.utils.data.Dataset):
     """
@@ -91,7 +88,7 @@ class FoodVisorDataset(torch.utils.data.Dataset):
             "labels": labels,
             "area": area,
             "image_id": image_id,
-            #"image_filename": img_id
+            # "image_filename": img_id
         }
 
         return img, target
@@ -137,62 +134,3 @@ def coco_to_pascalvoc(bbox: Union[list, tuple, np.array]) -> Union[list, tuple, 
     x0, y0 = min(x, x + w), min(y, y + h)
     x1, y1 = max(x, x + w), max(y, y + h)
     return x0, y0, x1, y1
-
-def split_train_test_valid_json(
-    img_annotation_path: str,
-    random_seed: int = None,
-    split_size=(
-        0.8,
-        0.2)):
-    """
-    Method to split dataset ids into train, test and valid
-
-    Argument:
-    ---------
-        - img_annotation_path (str): filename/path of the annotation json file
-        - random_seed (int): seed of the random shuffle
-        - split_size (tuple of float): float size for each split
-
-    Return:
-    -------
-        - 2 or 3 dictionary corresponding to the splitted annotation json file
-    """
-    with open(img_annotation_path) as f:
-        img_annotation = json.load(f)
-
-    img_ids = list(img_annotation.keys())
-    if random_seed:
-        random.seed(random_seed)
-    random.shuffle(img_ids)
-    total_length = len(img_ids)
-    img_ids = np.array(img_ids)
-
-    if len(split_size) == 1 and split_size[0] <= 1:
-        split_key = np.split(img_ids, [np.floor(total_length * split_size[0])])
-        return (
-            {k: v for k, v in img_annotation.items() if k in split_key[0]},
-            {k: v for k, v in img_annotation.items() if k in split_key[1]},
-        )
-    elif len(split_size) == 2 and split_size[0] <= 1:
-        split_key = np.split(img_ids,
-                             [int(np.floor(total_length * split_size[0]))])
-        return (
-            {k: v for k, v in img_annotation.items() if k in split_key[0]},
-            {k: v for k, v in img_annotation.items() if k in split_key[1]},
-        )
-    elif len(split_size) == 3 and split_size[0] <= 1:
-        split_key = np.split(
-            img_ids,
-            [
-                int(np.floor(total_length * split_size[0])),
-                int(np.floor(total_length * (split_size[0] + split_size[1]))),
-            ],
-        )
-        return (
-            {k: v for k, v in img_annotation.items() if k in split_key[0]},
-            {k: v for k, v in img_annotation.items() if k in split_key[1]},
-            {k: v for k, v in img_annotation.items() if k in split_key[2]},
-        )
-
-    else:
-        raise NotImplementedError

@@ -3,12 +3,11 @@ import os
 import pickle
 from random import randrange
 
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
 import torch
 import torch.distributed as dist
 import torchvision.transforms.functional as TF
-from PIL import ImageDraw, ImageFont
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 
 
 class Constants:
@@ -36,12 +35,14 @@ def plot_example(dataset: "FoodVisorDataset", idx: int = None):
         ax.add_patch(rect)
     plt.show()
 
+
 def unormalize_tensor(img: torch.Tensor) -> torch.Tensor:
     return TF.normalize(
         img,
         mean=[-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.255],
         std=[1 / 0.229, 1 / 0.224, 1 / 0.255]
     )
+
 
 def all_gather(data):
     """
