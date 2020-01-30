@@ -1,42 +1,40 @@
-import torchvision
 import torch
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torchvision.models.detection.rpn import AnchorGenerator
-from torchvision.models.detection import FasterRCNN
-from .engine import train_one_epoch, evaluate
+import torchvision
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.models.detection import FasterRCNN
+from torchvision.models.detection.rpn import AnchorGenerator
+
+from .engine import train_one_epoch, evaluate
+
 
 class FasterRCNNFood:
-    def __init__(self, pretrained=True, num_classes=2):
-        # load model
-        self.model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=pretrained)
-
-        # define number of classe and set the output of the classifier to this number
-        in_features = self.model.roi_heads.box_predictor.cls_score.in_features
-        self.model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
-
-        # # backbone model
-        # backbone = torchvision.models.mobilenet_v2(pretrained=True).features
-        # backbone.out_channels = 1280
+    def __init__(self, backbone_name, pretrained=True, finetune=True, num_classes=2):
+        # # load model
+        # self.model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=pretrained)
         #
-        # anchor_generator = AnchorGenerator(
-        #     sizes=((32, 64, 128, 256, 512),),
-        #     aspect_ratios=((0.5, 1.0, 2.0),)
-        # )
-        #
-        # roi_pooler = torchvision.ops.MultiScaleRoIAlign(
-        #     featmap_names=['0'],
-        #     output_size=7,
-        #     sampling_ratio=2
-        # )
-        #
-        # self.model = FasterRCNN(
-        #     backbone=backbone,
-        #     num_classes=num_classes,
-        #     rpn_anchor_generator=anchor_generator,
-        #     box_roi_pool=roi_pooler
-        # )
+        # # define number of classe and set the output of the classifier to this number
+        # in_features = self.model.roi_heads.box_predictor.cls_score.in_features
+        # self.model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
 
+        backbone = build_backbone(backbone_name, pretrained, finetune)
+
+        anchor_generator = AnchorGenerator(
+            sizes=((32, 64, 128, 256, 512),),
+            aspect_ratios=((0.5, 1.0, 2.0),)
+        )
+
+        roi_pooler = torchvision.ops.MultiScaleRoIAlign(
+            featmap_names=[0],
+            output_size=7,
+            sampling_ratio=2
+        )
+
+        self.model = FasterRCNN(
+            backbone=backbone,
+            num_classes=num_classes,
+            rpn_anchor_generator=anchor_generator,
+            box_roi_pool=roi_pooler
+        )
 
     def train(self, data_loader, data_loader_test, num_epochs=10, use_cuda=True, plot_running=True):
 
@@ -66,7 +64,7 @@ class FasterRCNNFood:
 
         for epoch in range(num_epochs):
             # train for one epoch, printing every 50 iterations
-            train_one_epoch(self.model, optimizer, data_loader, device, epoch, print_freq=20, writer=writer)
+            train_one_epoch(self.model, optimizer, data_loader, device, epoch, print_freq=50, writer=writer)
             # update the learning rate
             lr_scheduler.step()
             # evaluate on the test dataset
@@ -89,4 +87,43 @@ class FasterRCNNFood:
         self.model.eval()
         self.model.to("cpu")
         pred = self.model([img])
+        print(pred)
         return img, pred[0]
+
+
+def build_backbone(base_model_name, pretrained, finetune):
+    base_model_accepted = [
+        "mobilenetv2",
+        "vgg16",
+        "resnext50_32_4d"
+    ]
+
+    # Mobilenet v2
+    if base_model_name == "mobilenetv2":
+        backbone = torchvision.models.mobilenet_v2(pretrained).features
+        backbone.out_channels = 1280
+    # VGG 16
+    elif base_model_name == "vgg16":
+        backbone = torchvision.models.vgg16(pretrained).features
+        set_grad_for_finetunning(backbone, 10)
+        backbone.out_channels = 512
+    # Resnext 50
+    elif base_model_name == "resnext50":
+        backbone = torch.nn.Sequential(*list(torchvision.models.resnext50_32x4d(pretrained).children())[:-2])
+        set_grad_for_finetunning(backbone, 7)
+        backbone.out_channels = 2048
+    else:
+        print("Backbone model should be one of the following list: ")
+        for name in base_model_accepted:
+            print("     - {}".format(name))
+        raise NotImplementedError
+    return backbone
+
+
+def set_grad_for_finetunning(backbone, layer_number):
+    count = 0
+    for child in backbone.children():
+        count += 1
+        if count < layer_number:
+            for param in child.parameters():
+                param.requires_grad = False

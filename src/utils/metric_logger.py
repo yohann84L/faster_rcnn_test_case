@@ -167,7 +167,7 @@ class MetricLogger(object):
 
     def update_summary_writer(self, n_iter):
         for name, meter in self.meters.items():
-            self.writer.add_scalar(name, meter.value, n_iter)
+            self.writer.add_scalar("Losses/Loss/"+name, meter.value, n_iter)
 
 
     # def plot_every(self, iterable, print_freq):
