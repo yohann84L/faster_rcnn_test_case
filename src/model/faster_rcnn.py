@@ -106,7 +106,16 @@ class FasterRCNNFood:
         torch.save(state, Path(dir) / filename)
         "Checkpoint saved : {}".format(Path(dir) / filename)
 
-    def load_checkpoint(self, filename: str, cuda: bool = True) -> int:
+    def predict(self, dataset, idx):
+        img, _ = dataset[idx]
+        img.to("cpu")
+        self.model.eval()
+        self.model.to("cpu")
+        pred = self.model([img])
+        return img, pred[0]
+
+    @staticmethod
+    def load_checkpoint(filename: str, cuda: bool = True) -> ("FasterRCNNFood", int):
         """
         Load a model checkpoint to continue training.
         Args:
@@ -114,6 +123,7 @@ class FasterRCNNFood:
             cuda (bool = True): use cuda
 
         Returns:
+            (FasterRCNNFood) model
             (int) number of epoch + 1 the model was trained with
         """
         device = torch.device("cuda") if (cuda and torch.cuda.is_available()) else torch.device("cpu")
@@ -127,30 +137,33 @@ class FasterRCNNFood:
             start_epoch = eval(checkpoint['epoch'])
             model_name = eval(checkpoint['model_name'])
             # Build model key/architecture
-            self.__init__(model_name, pretrained, num_classes)
+            model = FasterRCNNFood(model_name, pretrained, num_classes)
             # Update model and optimizer
-            self.model.load_state_dict(checkpoint['state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer'])
+            model.model.load_state_dict(checkpoint['state_dict'])
+            model.optimizer.load_state_dict(checkpoint['optimizer'])
 
-            self.model = self.model.to(device)
+            model.model = model.model.to(device)
             # now individually transfer the optimizer parts...
-            for state in self.optimizer.state.values():
+            for state in model.optimizer.state.values():
                 for k, v in state.items():
                     if isinstance(v, torch.Tensor):
                         state[k] = v.to(device)
 
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(filename, checkpoint['epoch']))
+            return model, start_epoch
         else:
             print("=> no checkpoint found at '{}'".format(filename))
-        return start_epoch
 
-    def load_for_inference(self, filename: str, cuda: bool = True):
+    @staticmethod
+    def load_for_inference(filename: str, cuda: bool = True):
         """
         Load a model checkpoint to make inference.
         Args:
             filename (str): filename/path of the checkpoint.pth
             cuda (bool = True): use cuda
+        Returns:
+            (FasterRCNNFood) model
         """
         device = torch.device("cuda") if (cuda and torch.cuda.is_available()) else torch.device("cpu")
         if Path(filename).exists():
@@ -161,23 +174,15 @@ class FasterRCNNFood:
             num_classes = eval(checkpoint["num_classes"])
             model_name = eval(checkpoint['model_name'])
             # Build model key/architecture
-            self.__init__(model_name, pretrained, num_classes)
+            model = FasterRCNNFood(model_name, pretrained, num_classes)
             # Update model and optimizer
-            self.model.load_state_dict(checkpoint['state_dict'])
-            self.model = self.model.to(device)
-            self.model = self.model.eval()
+            model.model.load_state_dict(checkpoint['state_dict'])
+            model.model = model.model.to(device)
+            model.model = model.model.eval()
 
             print("=> loaded checkpoint '{}'".format(filename))
         else:
             print("=> no checkpoint found at '{}'".format(filename))
-
-    def predict(self, dataset, idx):
-        img, _ = dataset[idx]
-        img.to("cpu")
-        self.model.eval()
-        self.model.to("cpu")
-        pred = self.model([img])
-        return img, pred[0]
 
 
 def build_backbone(base_model_name, pretrained, finetune):
