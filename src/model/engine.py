@@ -53,7 +53,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq, wr
 
 
 @torch.no_grad()
-def evaluate(model, data_loader, device, writer, epoch):
+def evaluate(model, data_loader, device, writer, epoch, threshold=0.5):
     n_threads = torch.get_num_threads()
     # FIXME remove this and make paste_masks_in_image run on the GPU
     torch.set_num_threads(1)
@@ -64,7 +64,7 @@ def evaluate(model, data_loader, device, writer, epoch):
 
     total, correct = 0, 0
 
-    for image, targets in metric_logger.log_every(data_loader, 100, epoch=epoch, header=header):
+    for image, targets in metric_logger.log_every(data_loader, 50, epoch=epoch, header=header):
         image = list(img.to(device) for img in image)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         targets_labels = torch.as_tensor([int(1 in target["labels"]) for target in targets], dtype=torch.int8)
@@ -74,17 +74,22 @@ def evaluate(model, data_loader, device, writer, epoch):
         outputs = model(image)
 
         outputs = [{k: v.to(cpu_device) for k, v in t.items()} for t in outputs]
-        outputs_labels = torch.as_tensor([int(1 in output["labels"]) for output in outputs], dtype=torch.int8)
+        # Filter score only superior as threshold=0.5
+        outputs_filtred = []
+        for output in outputs:
+            output["labels"] = output["labels"][output["scores"] >= threshold]
+            # output["scores"] = output["scores"][output["scores"] >= threshold]
+            if 1 in output["labels"]:
+                outputs_filtred.append(1)
+
+        outputs_filtred = torch.as_tensor(outputs_filtred, dtype=torch.int8)
         model_time = time.time() - model_time
 
         total += len(image)
-        correct += (targets_labels == outputs_labels).sum().item()
+        correct += (targets_labels == outputs_filtred).sum().item()
 
         res = {target["image_id"].item(): output for target, output in zip(targets, outputs)}
-        print(res)
-        evaluator_time = time.time()
-        evaluator_time = time.time() - evaluator_time
-        metric_logger.update(model_time=model_time, evaluator_time=evaluator_time)
+        metric_logger.update(model_time=model_time)
 
     print("Test accuracy :", correct / total)
 
@@ -95,7 +100,9 @@ def evaluate(model, data_loader, device, writer, epoch):
     torch.set_num_threads(n_threads)
     writer.add_scalar("Accuracy/eval", correct / total, epoch)
 
+
 import numpy as np
+
 
 def get_model_scores(pred_boxes):
     """Creates a dictionary of from model_scores to image ids.
@@ -222,7 +229,6 @@ def get_avg_precision_at_iou(gt_boxes, pred_bb, iou_thr=0.5):
         arg_sort = np.argsort(pred_bb[img_id]['scores'])
         pred_bb[img_id]['scores'] = np.array(pred_bb[img_id]['scores'])[arg_sort].tolist()
         pred_bb[img_id]['boxes'] = np.array(pred_bb[img_id]['boxes'])[arg_sort].tolist()
-
 
     pred_boxes_pruned = deepcopy(pred_bb)
 

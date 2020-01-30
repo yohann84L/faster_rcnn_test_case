@@ -8,13 +8,45 @@ import matplotlib.pyplot as plt
 import torch
 import torch.distributed as dist
 import torchvision.transforms.functional as TF
-
+import configparser
 
 class Constants:
     # Label Mapping
     LANG_LABEL = ["fr", "en"]
     COL_LABEL_NAME = "labelling_name_"
     COL_LABEL_ID = "labelling_id"
+
+class Config:
+    def __init__(self, config_path):
+        self._config = configparser.ConfigParser()
+        self._config.read(config_path)
+        self.check_section()
+
+        self._DATASET = None
+        self.MODEL = None
+        self.TRAIN = None
+
+
+    def parse_config(self):
+        self.DATASET = self._config["DATASET"]
+        self.MODEL = self._config["MODEL"]
+        self.TRAIN = self._config["TRAIN"]
+
+    @property
+    def DATASET(self):
+        for key in self._config['DATASET']:
+            print(key)
+
+    def check_section(self):
+        available_section = ["DATASET", "MODEL", "TRAIN"]
+        for section in available_section:
+            if section not in self._config.sections():
+                print("[{}] section must be present in config file".format(section))
+                raise NotImplementedError
+
+    @DATASET.setter
+    def DATASET(self, value):
+        self._DATASET = value
 
 
 def unormalize_tensor(img: torch.Tensor) -> torch.Tensor:
