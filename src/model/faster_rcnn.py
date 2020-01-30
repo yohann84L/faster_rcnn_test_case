@@ -132,10 +132,10 @@ class FasterRCNNFood:
             print("=> loading checkpoint '{}'".format(filename))
             checkpoint = torch.load(filename, map_location=device)
             # Load params
-            pretrained = eval(checkpoint['pretrained'])
-            num_classes = eval(checkpoint["num_classes"])
-            start_epoch = eval(checkpoint['epoch'])
-            model_name = eval(checkpoint['model_name'])
+            pretrained = checkpoint['pretrained']
+            num_classes = checkpoint["num_classes"]
+            start_epoch = checkpoint['epoch']
+            model_name = checkpoint['model_name']
             # Build model key/architecture
             model = FasterRCNNFood(model_name, pretrained, num_classes)
             # Update model and optimizer
@@ -170,9 +170,9 @@ class FasterRCNNFood:
             print("=> loading checkpoint '{}'".format(filename))
             checkpoint = torch.load(filename, map_location=device)
             # Load params
-            pretrained = eval(checkpoint['pretrained'])
-            num_classes = eval(checkpoint["num_classes"])
-            model_name = eval(checkpoint['model_name'])
+            pretrained = checkpoint['pretrained']
+            num_classes = checkpoint["num_classes"]
+            model_name = checkpoint['model_name']
             # Build model key/architecture
             model = FasterRCNNFood(model_name, pretrained, num_classes)
             # Update model and optimizer
@@ -190,7 +190,8 @@ def build_backbone(base_model_name, pretrained, finetune):
         "mobilenetv2",
         "vgg16",
         "resnet18",
-        "resnext50_32_4d"
+        "resnet50",
+        "resnext50"
     ]
 
     # Mobilenet v2
@@ -209,7 +210,13 @@ def build_backbone(base_model_name, pretrained, finetune):
         if finetune:
             set_grad_for_finetunning(backbone, 7)
         backbone.out_channels = 512
-    # Resnext 50
+    # ResNet 50
+    elif base_model_name == "resnext50":
+        backbone = torch.nn.Sequential(*list(torchvision.models.resnet50(pretrained).children())[:-2])
+        if finetune:
+            set_grad_for_finetunning(backbone, 7)
+        backbone.out_channels = 2048
+    # ResNext 50
     elif base_model_name == "resnext50":
         backbone = torch.nn.Sequential(*list(torchvision.models.resnext50_32x4d(pretrained).children())[:-2])
         if finetune:
