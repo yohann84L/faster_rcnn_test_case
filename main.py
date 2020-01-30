@@ -15,9 +15,11 @@ def build_dataset(dataset_params: dict, transforms: DatasetTransforms) -> FoodVi
         transforms=transforms
     )
 
+
 if __name__ == '__main__':
     # plot_example(dataset, idx=1270)
     model = FasterRCNNFood(
+        backbone_name="resnet18",
         pretrained=True,
         num_classes=2
     )
@@ -42,10 +44,9 @@ if __name__ == '__main__':
         dataset_test, batch_size=1, shuffle=False, num_workers=4,
         collate_fn=utils.collate_fn)
 
-    model.load_model_for_inference("models/test_model.pth", cuda=False)
+    print("Start training")
+    model.train(data_loader, data_loader_test, num_epochs=3, use_cuda=True, epoch_save_ckpt=-1)
 
-    img, pred = model.predict(dataset, 23)
-    plot_prediction(img, pred)
-
-    # print("Start training")
-    # model.train(data_loader, data_loader_test, num_epochs=3, use_cuda=True)
+    # model.load_model_for_inference("models/test_model.pth", cuda=False)
+    # img, pred = model.predict(dataset, 23)
+    # plot_prediction(img, pred)
