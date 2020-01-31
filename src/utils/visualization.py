@@ -34,13 +34,14 @@ def plot_example(dataset: "FoodVisorDataset", idx: int = None):
     plt.show()
 
 
-def plot_prediction(img: torch.Tensor, pred: dict):
+def plot_prediction(img: torch.Tensor, pred: dict, thresh: float = 0.3):
     img = unormalize_tensor(img)
     fig, ax = plt.subplots(1)
     ax.imshow(img.numpy().transpose(1, 2, 0))
     boxes = pred["boxes"]
     labels = pred["labels"]
-    for bbox, label in zip(boxes[labels == 1], labels[labels == 1]):
+    scores = pred["scores"]
+    for bbox, label in zip(boxes[scores >= thresh], labels[scores >= thresh]):
         x0, y0, x1, y1 = bbox
         rect = patches.Rectangle((x0, y0), x1 - x0, y1 - y0, linewidth=2,
                               alpha=0.7, linestyle="dashed",

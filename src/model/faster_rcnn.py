@@ -20,12 +20,12 @@ class FasterRCNNFood:
         backbone = build_backbone(backbone_name, pretrained, finetune)
 
         anchor_generator = AnchorGenerator(
-            sizes=((32, 64, 128, 256, 512),),
+            sizes=((16, 32, 64, 128, 256),),
             aspect_ratios=((0.5, 1.0, 2.0),)
         )
 
         roi_pooler = torchvision.ops.MultiScaleRoIAlign(
-            featmap_names=[0],
+            featmap_names=["0"],
             output_size=7,
             sampling_ratio=2
         )
@@ -84,7 +84,7 @@ class FasterRCNNFood:
             # update the learning rate
             self.lr_scheduler.step()
             # evaluate on the test dataset
-            evaluate(self.model, data_loader_test, device=device, writer=writer, epoch=epoch)
+            evaluate(self.model, data_loader_test, device=device, writer=writer, epoch=epoch, threshold=0.25)
             # save checkpoint
             if epoch in epoch_save_ckpt:
                 self.save_checkpoint(dir.as_posix(), epoch)
@@ -113,7 +113,7 @@ class FasterRCNNFood:
         torch.save(state, Path(dir) / filename)
         "Checkpoint saved : {}".format(Path(dir) / filename)
 
-    def predict(self, dataset, idx):
+    def predict(self, dataset: "FoodVisorDataset", idx: Union[list, int]):
         img, _ = dataset[idx]
         img.to("cpu")
         self.model.eval()
@@ -219,7 +219,7 @@ def build_backbone(base_model_name, pretrained, finetune):
             set_grad_for_finetunning(backbone, 7)
         backbone.out_channels = 512
     # ResNet 50
-    elif base_model_name == "resnext50":
+    elif base_model_name == "resnet50":
         backbone = torch.nn.Sequential(*list(torchvision.models.resnet50(pretrained).children())[:-2])
         if finetune:
             set_grad_for_finetunning(backbone, 7)
