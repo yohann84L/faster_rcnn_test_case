@@ -156,7 +156,7 @@ class FasterRCNNFood:
             print("=> no checkpoint found at '{}'".format(filename))
 
     @staticmethod
-    def load_for_inference(filename: str, cuda: bool = True):
+    def load_for_inference(filename: str, cuda: bool = True) -> "FasterRCNNFood":
         """
         Load a model checkpoint to make inference.
         Args:
@@ -181,6 +181,7 @@ class FasterRCNNFood:
             model.model = model.model.eval()
 
             print("=> loaded checkpoint '{}'".format(filename))
+            return model
         else:
             print("=> no checkpoint found at '{}'".format(filename))
 
