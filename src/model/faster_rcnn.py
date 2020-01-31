@@ -1,8 +1,10 @@
 from datetime import datetime
 from pathlib import Path
+from typing import Union
 
 import torch
 import torchvision
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.rpn import AnchorGenerator
@@ -11,13 +13,7 @@ from .engine import train_one_epoch, evaluate
 
 
 class FasterRCNNFood:
-    def __init__(self, backbone_name, pretrained=True, finetune=True, num_classes=2):
-        # # load model
-        # self.model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=pretrained)
-        #
-        # # define number of classe and set the output of the classifier to this number
-        # in_features = self.model.roi_heads.box_predictor.cls_score.in_features
-        # self.model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+    def __init__(self, backbone_name: str, pretrained: bool = True, finetune: bool = True, num_classes: int = 2):
         self.__pretrained = pretrained
         self.__num_classes = num_classes
         self.__model_name = backbone_name
@@ -54,7 +50,18 @@ class FasterRCNNFood:
             gamma=0.1
         )
 
-    def train(self, data_loader, data_loader_test, num_epochs=10, use_cuda=True, epoch_save_ckpt=None, dir=None):
+    def train(self, data_loader: DataLoader, data_loader_test: DataLoader, num_epochs: int = 10, use_cuda: bool = True,
+              epoch_save_ckpt: Union[int, list] = None, dir: str = None):
+        """
+        Method to train FasterRCNNFood model.
+        Args:
+            data_loader (torch.utils.data.DataLoader): data loader to train model on
+            data_loader_test (torch.utils.data.DataLoader): data loader to evaluate model on
+            num_epochs (int = 10): number of epoch to train model
+            use_cuda (bool = True): use cuda or not
+            epoch_save_ckpt (list or int): Epoch at which you want to save the model. If -1 save only last epoch.
+            dir (str = "models/): Directory where model are saved under the name "{model_name}_{date}_ep{epoch}.pth"
+        """
         if epoch_save_ckpt == -1:
             epoch_save_ckpt = [num_epochs - 1]
         if not dir:
